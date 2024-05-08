@@ -1,0 +1,7 @@
+.login-btn {
+  transition: all 0.5s ease-in-out !important;
+}
+.login-btn:hover {
+  background-color: #f1b749 !important;
+  filter: brightness(0.8) !important;
+}
