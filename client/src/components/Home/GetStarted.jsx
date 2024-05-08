@@ -1,6 +1,5 @@
 import { styled, Typography } from "@mui/material";
 import { Box, Container } from "@mui/system";
-import homeIllustration from "../../img/illustration.png";
 import CustomButton from "./CustomButton";
 
 const GetStarted = () => {
@@ -52,7 +51,7 @@ const GetStarted = () => {
         </Box>
 
         <img
-          src={homeIllustration}
+          // src={homeIllustration}
           alt="illustration"
           style={{ maxWidth: "100%" }}
         />
