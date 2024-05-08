@@ -1,172 +1,130 @@
+require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const bodyParser = require("body-parser");
-const { Client } = require("pg");
 const path = require("path");
 const multer = require("multer");
-const { error } = require("console");
+const connectDb = require("./db/db");
+const mongoose = require("mongoose");
+
+//models
+const Auth = require("./models/authModel");
+const Profile = require("./models/profileModel");
+const Product = require("./models/productModel");
 
 const app = express();
 app.use(bodyParser.json());
 app.use(cors());
 
-const port = 5000;
-
-const client = new Client({
-  host: "localhost",
-  user: "postgres",
-  port: 5432,
-  password: "pass123",
-  database: "study",
-});
-
-client.connect((error) => {
-  if (error) {
-    console.log("Error connecting database", error.stack);
-  } else {
-    console.log("Database connected successfully");
+// Auth endpoints
+app.get("/authAll", async (req, res) => {
+  try {
+    const data = await Auth.find();
+    res.send(data);
+    console.log("Data sent successfully");
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Internal Server Error");
   }
 });
 
-// auth
-
-function createAccount(username, password, role) {
-  const res = client.query(
-    "INSERT INTO auth (username, password, role) VALUES ($1, $2, $3)",
-    [username, password, role],
-    (err, res) => {
-      if (err) {
-        console.log(err.message);
-      } else {
-        console.log("Data insert successful");
-      }
-    }
-  );
-}
-
-function changePassword(username, password) {
-  const res = client.query(
-    "UPDATE auth SET password = $1 WHERE username = $2",
-    [password, username],
-    (err, res) => {
-      if (err) {
-        console.log(err.message);
-      } else {
-        console.log("Data update successful");
-      }
-    }
-  );
-}
-
-// profile
-
-function createProfile(
-  username,
-  name,
-  description,
-  website,
-  location,
-  image,
-  role
-) {
-  client.query(
-    "INSERT INTO profile (username, name, description, website, location, image, role) VALUES ($1, $2, $3, $4, $5, $6, $7)",
-    [username, name, description, website, location, image, role],
-    (err, res) => {
-      if (err) {
-        console.log(err.message);
-      } else {
-        console.log("Data insert successful");
-      }
-    }
-  );
-}
-
-// product
-
-const storageProduct = multer.diskStorage({
-  destination: path.join(__dirname, "public/uploads/product"),
-  filename: (req, file, cb) => {
-    cb(null, file.originalname);
-  },
+app.post("/auth", async (req, res) => {
+  const { username, password } = req.body;
+  try {
+    const data = await Auth.find({ username, password });
+    res.send(data);
+    console.log("Data sent successfully");
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Internal Server Error");
+  }
 });
 
+//account add by admin
+app.post("/addaccount", async (req, res) => {
+  const { username, password, role } = req.body;
+  try {
+    const userExist = await Auth.findOne({ username });
+    if (userExist) {
+      return res.status(400).json({ msg: "Username already exist" });
+    }
+
+    if (password.length < 6) {
+      return res
+        .status(400)
+        .json({ msg: "Password must be atleat 6 characters" });
+    }
+
+    await Auth.create({ username, password, role });
+    res.status(200).json({ msg: "Account created successfully" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Internal Server Error");
+  }
+});
+
+app.post("/update", async (req, res) => {
+  const { username, password } = req.body;
+  try {
+    await Auth.updateOne({ username }, { password });
+    res.send("Password updated successfully");
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Internal Server Error");
+  }
+});
+
+// Profile endpoints
+app.get("/profileAll", async (req, res) => {
+  try {
+    const data = await Profile.find();
+    res.send(data);
+    console.log("Data sent successfully");
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Internal Server Error");
+  }
+});
+
+app.get("/profile/:username", async (req, res) => {
+  const { username } = req.params;
+  try {
+    const data = await Profile.find({ username });
+    res.send(data);
+    console.log("Data sent successfully");
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Internal Server Error");
+  }
+});
+
+app.post("/addprofile", async (req, res) => {
+  const { username, name, description, website, location, image, role } =
+    req.body;
+  try {
+    await Profile.create({
+      username,
+      name,
+      description,
+      website,
+      location,
+      image,
+      role,
+    });
+    res.status(400).json("Profile added successfully");
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Internal Server Error");
+  }
+});
+
+// Image upload endpoints
 const storageProfile = multer.diskStorage({
   destination: path.join(__dirname, "public/uploads/profile"),
   filename: (req, file, cb) => {
     cb(null, file.originalname);
   },
 });
-
-function addProduct(serialNumber, name, brand) {
-  client.query(
-    "INSERT INTO product (serialNumber, name, brand) VALUES ($1, $2, $3)",
-    [serialNumber, name, brand],
-    (err, res) => {
-      if (err) {
-        console.log(err.message);
-      } else {
-        console.log("Data insert successful");
-      }
-    }
-  );
-}
-
-// auth
-app.get("/authAll", async (req, res) => {
-  const data = await client.query("Select * from auth");
-  res.header("Access-Control-Allow-Credentials", true);
-  res.send(data.rows);
-  console.log("Data sent successfully");
-});
-
-app.post("/auth/:username/:password", async (req, res) => {
-  const { username, password } = req.params;
-  const data = await client.query(
-    `SELECT * FROM auth WHERE username = '${username}' AND password = '${password}'`
-  );
-  res.send(data.rows);
-  console.log("Data sent successfully");
-});
-
-app.post("/addaccount", (req, res) => {
-  const { username, password, role } = req.body;
-  createAccount(username, password, role);
-  res.send("Data inserted");
-});
-
-app.post("/changepsw", (req, res) => {
-  const { username, password } = req.body;
-  changePassword(username, password);
-  res.send("Data updated");
-});
-
-// profile
-
-app.get("/profileAll", async (req, res) => {
-  const data = await client.query("Select * from profile");
-  res.header("Access-Control-Allow-Credentials", true);
-  res.send(data.rows);
-  console.log("Data sent successfully");
-});
-
-app.get("/profile/:username", async (req, res) => {
-  const { username } = req.params;
-  const data = await client.query(
-    `SELECT * FROM profile WHERE username = '${username}'`
-  );
-  res.send(data.rows);
-  console.log("Data sent successfully");
-});
-
-app.post("/addprofile", (req, res) => {
-  const { username, name, description, website, location, image, role } =
-    req.body;
-  createProfile(username, name, description, website, location, image, role);
-  res.send("Data inserted");
-});
-
-// image
 
 app.post("/upload/profile", (req, res) => {
   let upload = multer({ storage: storageProfile }).single("image");
@@ -182,7 +140,13 @@ app.post("/upload/profile", (req, res) => {
   });
 });
 
-// product
+// Product endpoints
+const storageProduct = multer.diskStorage({
+  destination: path.join(__dirname, "public/uploads/product"),
+  filename: (req, file, cb) => {
+    cb(null, file.originalname);
+  },
+});
 
 app.post("/upload/product", (req, res) => {
   let upload = multer({ storage: storageProduct }).single("image");
@@ -198,29 +162,33 @@ app.post("/upload/product", (req, res) => {
   });
 });
 
-app.get("/file/profile/:fileName", function (req, res) {
-  const { fileName } = req.params;
-  const filePath = path.join(__dirname, "public/uploads/profile", fileName);
-  res.sendFile(filePath);
-});
-
-app.get("/file/product/:fileName", function (req, res) {
-  const { fileName } = req.params;
-  const filePath = path.join(__dirname, "public/uploads/product", fileName);
-  res.sendFile(filePath);
-});
-
 app.get("/product/serialNumber", async (req, res) => {
-  const data = await client.query(`SELECT serialNumber FROM product`);
-  res.send(data.rows);
+  try {
+    const data = await Product.find({}, { serialNumber: 1, _id: 0 });
+    res.send(data);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Internal Server Error");
+  }
 });
 
-app.post("/addproduct", (req, res) => {
+app.post("/addproduct", async (req, res) => {
   const { serialNumber, name, brand } = req.body;
-  addProduct(serialNumber, name, brand);
-  res.send("Data inserted");
+  try {
+    await Product.create({ serialNumber, name, brand });
+    res.send("Data inserted");
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Internal Server Error");
+  }
 });
 
-app.listen(port, () => {
-  console.log("Server is running on port 5000");
+// Static file serving
+app.use(express.static("public"));
+
+const port = 5000;
+connectDb().then(() => {
+  app.listen(port, () => {
+    console.log(`Server running on port ${port}`);
+  });
 });
